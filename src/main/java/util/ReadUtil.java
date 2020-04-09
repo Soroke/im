@@ -2,14 +2,15 @@ package util; /**
  * Created by song on 2018/10/22.
  */
 
-import com.dd.plist.NSArray;
-import com.dd.plist.NSDictionary;
-import com.dd.plist.NSString;
-import com.dd.plist.PropertyListParser;
+import com.dd.plist.*;
 import com.google.zxing.WriterException;
+import net.dongliu.apk.parser.ApkFile;
+import net.dongliu.apk.parser.bean.ApkMeta;
+import net.dongliu.apk.parser.bean.UseFeature;
 import org.testng.annotations.Test;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.ZipEntry;
@@ -68,7 +69,7 @@ public final class ReadUtil {
     public static Map<String,Object> readIPA(String ipaPath,String... iconPath){
         Map<String,Object> map = new HashMap<String,Object>();
         try {
-            File file = new File(ipaPath);
+            File file = new File(getIpaPath(ipaPath));
             InputStream is = new FileInputStream(file);
             InputStream is2 = new FileInputStream(file);
             ZipInputStream zipIns = new ZipInputStream(is);
@@ -81,10 +82,8 @@ public final class ReadUtil {
             while ((ze = zipIns.getNextEntry()) != null) {
                 if (!ze.isDirectory()) {
                     String name = ze.getName();
-                    if (null != name &&
-                            name.toLowerCase().contains(".app/info.plist")) {
-                        ByteArrayOutputStream _copy = new
-                                ByteArrayOutputStream();
+                    if (null != name && name.toLowerCase().contains(".app/info.plist")) {
+                        ByteArrayOutputStream _copy = new ByteArrayOutputStream();
                         int chunk = 0;
                         byte[] data = new byte[1024];
                         while(-1!=(chunk=zipIns.read(data))){
@@ -103,7 +102,13 @@ public final class ReadUtil {
                                 NSDictionary CFBundlePrimaryIcon = (NSDictionary)iconDict.get("CFBundlePrimaryIcon");
                                 if(CFBundlePrimaryIcon.containsKey("CFBundleIconFiles")){
                                     NSArray CFBundleIconFiles =(NSArray)CFBundlePrimaryIcon.get("CFBundleIconFiles");
-                                    icon = CFBundleIconFiles.getArray()[0].toString();
+                                    NSObject[] iconArrayList = CFBundleIconFiles.getArray();
+                                    //icon = CFBundleIconFiles.getArray()[0].toString();
+                                    if (iconArrayList.length >= 2) {
+                                        icon = iconArrayList[iconArrayList.length - 2].toString();
+                                    } else {
+                                        icon = iconArrayList[iconArrayList.length - 1].toString();
+                                    }
                                     if(icon.contains(".png")){
                                         icon = icon.replace(".png", "");
                                     }
@@ -119,17 +124,24 @@ public final class ReadUtil {
                     }
                 }
             }
+            //获取icon的路径，如果用户传入路径就使用指定路径，否则在ipa包同路径下创建
+            String icon_path = "";
+            if (iconPath.length == 0) {
+                icon_path = ipaPath;
+            } else if (iconPath.length == 1) {
+                icon_path = iconPath[0];
+            }
 
             //根据图标名称下载图标文件到指定位置
-            if (iconPath.length == 1) {
+            if (icon_path != "") {
                 while ((ze2 = zipIns2.getNextEntry()) != null) {
                     if (!ze2.isDirectory()) {
                         String name = ze2.getName();
 //System.out.println(name);
                         if(name.contains(icon.trim())){
 //System.out.println(11111);
-                            NSString parameters = (NSString) rootDict.get("CFBundleDisplayName");
-                            File iconImage = new File(iconPath[0] + "/icon.png");
+                            NSString parameters = (NSString) rootDict.get("CFBundleName");
+                            File iconImage = new File(icon_path + "/" + parameters.toString() + "_iOS_icon.png");
                             FileOutputStream fos = new FileOutputStream(iconImage);
                             int chunk = 0;
                             byte[] data = new byte[1024];
@@ -137,7 +149,7 @@ public final class ReadUtil {
                                 fos.write(data, 0, chunk);
                             }
                             fos.close();
-                            ProcessingPictures(iconPath[0]);
+                            ProcessingPictures(icon_path);
                             break;
                         }
                     }
@@ -152,8 +164,12 @@ public final class ReadUtil {
             parameters = (NSString) rootDict.objectForKey("CFBundleShortVersionString");
             map.put("versionName", parameters.toString());
             //应用名称
-            parameters = (NSString) rootDict.get("CFBundleDisplayName");
-            map.put("CFBundleDisplayName", parameters.toString());
+            //parameters = (NSString) rootDict.get("CFBundleDisplayName");
+            //map.put("CFBundleDisplayName", parameters.toString());
+
+            //应用名称1
+            parameters = (NSString) rootDict.get("CFBundleName");
+            map.put("CFBundleName", parameters.toString());
 
             /////////////////////////////////////////////////
             infoIs.close();
@@ -235,12 +251,150 @@ public final class ReadUtil {
             fop.write(contentInBytes);
             fop.flush();
             fop.close();
-            System.out.println("Done");
+            System.out.println("plist file create Done.");
         } catch (IOException e) {
             System.out.println("文件创建失败！！！");
             e.printStackTrace();
         }
 
+    }
+
+    /**
+     * 获取指定文件夹下的ipa文件的名称
+     * @param path 路径
+     * @return
+     */
+    public static String getIpaPath(String path) {
+        if (path.equals("") || path == "" || path == null) {
+            System.err.println("指定路径为空，无法识别IPA包的path");
+            return null;
+        }
+        String ipaPath ="";
+        File file = new File(path);
+        File[] tempList = file.listFiles();
+        for (int i = 0; i < tempList.length; i++) {
+            if (tempList[i].isFile()) {
+//                System.out.println("文件名称：" + tempList[i].getName());
+                try{
+                    String[] fileNames = tempList[i].getName().split("\\.");
+                    if (fileNames[fileNames.length-1].equals("ipa")) {
+                        ipaPath=tempList[i].getPath();
+                    }
+                } catch (ArrayIndexOutOfBoundsException e) {
+                    continue;
+                }
+            }
+        }
+
+        if (ipaPath.equals("") || ipaPath == "") {
+            System.err.println("当前路径下不存在ipa包");
+            return null;
+        }
+        return ipaPath;
+    }
+
+    /**
+     * 获取指定文件夹下的apk文件的名称
+     * @param path 路径
+     * @return
+     */
+    public static String getApkPath(String path) {
+        if (path.equals("") || path == "" || path == null) {
+            System.err.println("指定路径为空，无法识别IPA包的path");
+            return null;
+        }
+        String apkPath ="";
+        File file = new File(path);
+        File[] tempList = file.listFiles();
+        for (int i = 0; i < tempList.length; i++) {
+            if (tempList[i].isFile()) {
+//                System.out.println("文件名称：" + tempList[i].getName());
+                try{
+                    String[] fileNames = tempList[i].getName().split("\\.");
+                    if (fileNames[fileNames.length-1].equals("apk")) {
+                        apkPath=tempList[i].getPath();
+                    }
+                } catch (ArrayIndexOutOfBoundsException e) {
+                    continue;
+                }
+            }
+        }
+
+        if (apkPath.equals("") || apkPath == "") {
+            System.err.println("当前路径下不存在apk包");
+            return null;
+        }
+        return apkPath;
+    }
+
+
+    /**
+     * 读取APK包 获取指定信息 获取icon文件
+     * @param path 包所在路径
+     * @param iconPath icon文件存放路径
+     * @return MAP 项目名称、包名、版本号等信息
+     */
+    public Map readApk(String path,String... iconPath) {
+        Map<String,String> map = new HashMap<String,String>();
+        String apkPath = getApkPath(path);
+        String icon_path = "";
+        try {
+            ApkFile apkParser = new ApkFile(new File(apkPath));
+            //String xml = apkParser.getManifestXml();
+            //System.out.println(xml);
+            ApkMeta apkMeta = apkParser.getApkMeta();
+            //获取项目名称、包名、版本号等信息
+            map.put("name",apkMeta.getLabel());
+            map.put("packageName",apkMeta.getPackageName());
+            map.put("version",apkMeta.getVersionName().toString());
+
+            //获取icon的路径，如果用户传入路径就使用指定路径，否则在ipa包同路径下创建
+            if (iconPath.length == 0) {
+                icon_path = path;
+            } else if (iconPath.length == 1) {
+                icon_path = iconPath[0];
+            }
+            //将apk包中的icon文件拿出来
+
+            ApkIconUtil.extractFileFromApk(apkPath,apkMeta.getIcon(),icon_path + apkMeta.getLabel() + "_Android_icon.png");
+
+//            System.out.println(apkMeta);
+            apkParser.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return map;
+    }
+
+    @Test
+    public void apk() {
+        Map<String,Object> mapIpa = readApk("D:/1111/");
+        for (String key : mapIpa.keySet()) {
+            System.out.println(key + ":" + mapIpa.get(key));
+        }
+    }
+
+    @Test
+    public void ipa() {
+        Map<String,Object> mapIpa = ReadUtil.readIPA("D:/1111/");
+        for (String key : mapIpa.keySet()) {
+            System.out.println(key + ":" + mapIpa.get(key));
+        }
+        createPlistFile("D:/1111/","https://appdown.faxuanyun.com:1443/upload/5e847cb055b257001dc14a67/ios/com.faxuan.LawAssess_2.3.5_17.ipa",mapIpa.get("package").toString(),mapIpa.get("versionName").toString(),mapIpa.get("CFBundleName").toString(),"https://appdown.faxuanyun.com:1443/upload/5e847cb055b257001dc14a67/icon/com.faxuan.LawAssess_1.2.3_16_i.png");
+        /**
+         * 生成二维码
+         */
+        try {
+            QrCodeUtil.createQrCode( "D:/1111//ipa.jpg","itms-services://?action=download-manifest&url=https://appdown.faxuanyun.com:1443/api/plist/5e8e8ed5d59e7a001d935440/5e8e91c3d59e7a001d935444",1100,"JPEG");
+            System.out.println("二维码文件生成成功");
+        } catch (WriterException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            System.err.println("二维码文件生成失败");
+            e.printStackTrace();
+        }
     }
 
 
@@ -278,7 +432,7 @@ public final class ReadUtil {
         /**
          * 根据ipa包获取的信息创建plist文件
          */
-        createPlistFile(ages[0],ages[1],mapIpa.get("package").toString(),mapIpa.get("versionName").toString(),mapIpa.get("CFBundleDisplayName").toString(),"https://fzbd.t.faxuan.net/ipa/" + ages[2] + "/icon.png");
+        createPlistFile(ages[0],ages[1],mapIpa.get("package").toString(),mapIpa.get("versionName").toString(),mapIpa.get("CFBundleName").toString(),"https://fzbd.t.faxuan.net/ipa/" + ages[2] + "/icon.png");
         /**
          * 生成二维码
          */
