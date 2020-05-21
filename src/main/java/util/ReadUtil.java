@@ -156,12 +156,17 @@ public final class ReadUtil {
                 }
             }
 
-
+//            for (String s:rootDict.keySet()) {
+//                System.out.println(s + "----" + rootDict.get(s));
+//            }
             // 应用包名
             NSString parameters = (NSString) rootDict.get("CFBundleIdentifier");
             map.put("package", parameters.toString());
             // 应用版本名
             parameters = (NSString) rootDict.objectForKey("CFBundleShortVersionString");
+            map.put("version", parameters.toString());
+            //内部版本
+            parameters = (NSString) rootDict.objectForKey("CFBundleVersion");
             map.put("versionName", parameters.toString());
             //应用名称
             //parameters = (NSString) rootDict.get("CFBundleDisplayName");
@@ -347,6 +352,8 @@ public final class ReadUtil {
             map.put("name",apkMeta.getLabel());
             map.put("packageName",apkMeta.getPackageName());
             map.put("version",apkMeta.getVersionName().toString());
+            map.put("versionName",apkMeta.getVersionCode().toString());
+
 
             //获取icon的路径，如果用户传入路径就使用指定路径，否则在ipa包同路径下创建
             if (iconPath.length == 0) {
@@ -370,7 +377,7 @@ public final class ReadUtil {
 
     @Test
     public void apk() {
-        Map<String,Object> mapIpa = readApk("D:/1111/");
+        Map<String,Object> mapIpa = readApk("/Users/songrenkun/Desktop/test/");
         for (String key : mapIpa.keySet()) {
             System.out.println(key + ":" + mapIpa.get(key));
         }
@@ -378,16 +385,16 @@ public final class ReadUtil {
 
     @Test
     public void ipa() {
-        Map<String,Object> mapIpa = ReadUtil.readIPA("D:/1111/");
+        Map<String,Object> mapIpa = ReadUtil.readIPA("/Users/songrenkun/Desktop/test/");
         for (String key : mapIpa.keySet()) {
             System.out.println(key + ":" + mapIpa.get(key));
         }
-        createPlistFile("D:/1111/","https://appdown.faxuanyun.com:1443/upload/5e847cb055b257001dc14a67/ios/com.faxuan.LawAssess_2.3.5_17.ipa",mapIpa.get("package").toString(),mapIpa.get("versionName").toString(),mapIpa.get("CFBundleName").toString(),"https://appdown.faxuanyun.com:1443/upload/5e847cb055b257001dc14a67/icon/com.faxuan.LawAssess_1.2.3_16_i.png");
+        createPlistFile("/Users/songrenkun/Desktop/test/","https://appdown.faxuanyun.com:1443/upload/5e847cb055b257001dc14a67/ios/com.faxuan.LawAssess_2.3.5_17.ipa",mapIpa.get("package").toString(),mapIpa.get("version").toString(),mapIpa.get("CFBundleName").toString(),"https://appdown.faxuanyun.com:1443/upload/5e847cb055b257001dc14a67/icon/com.faxuan.LawAssess_1.2.3_16_i.png");
         /**
          * 生成二维码
          */
         try {
-            QrCodeUtil.createQrCode( "D:/1111//ipa.jpg","itms-services://?action=download-manifest&url=https://appdown.faxuanyun.com:1443/api/plist/5e8e8ed5d59e7a001d935440/5e8e91c3d59e7a001d935444",1100,"JPEG");
+            QrCodeUtil.createQrCode( "/Users/songrenkun/Desktop/test/ipa.jpg","itms-services://?action=download-manifest&url=https://appdown.faxuanyun.com:1443/api/plist/5e8e8ed5d59e7a001d935440/5e8e91c3d59e7a001d935444",1100,"JPEG");
             System.out.println("二维码文件生成成功");
         } catch (WriterException e) {
             e.printStackTrace();
